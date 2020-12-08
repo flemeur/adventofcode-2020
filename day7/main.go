@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -25,6 +26,10 @@ func main() {
 	answer := solvePuzzle1(m)
 
 	fmt.Printf("Puzzle 1 answer: %d\n", answer)
+
+	answer = solvePuzzle2(m)
+
+	fmt.Printf("Puzzle 2 answer: %d\n", answer)
 }
 
 // How many bag colors can eventually contain at least one shiny gold bag?
@@ -33,18 +38,42 @@ func solvePuzzle1(m bagMap) int {
 	return len(bags)
 }
 
-type bagMap map[string][]string
+func solvePuzzle2(m bagMap) int {
+	return m.countBags("shiny gold")
+}
+
+type bagMap map[string][]bag
+
+type bag struct {
+	count int
+	color string
+}
+
+func (m bagMap) countBags(search string) int {
+	var recursion func(key string, bags []bag) int
+	recursion = func(key string, bags []bag) int {
+		var count int
+		for _, b := range bags {
+			count += b.count + b.count*recursion(b.color, m[b.color])
+		}
+		return count
+	}
+	if _, ok := m[search]; !ok {
+		return 0
+	}
+	return recursion(search, m[search])
+}
 
 func (m bagMap) findBagsContaining(search string) []string {
 	found := make(map[string]struct{})
-	var recursion func(key string, colors []string)
-	recursion = func(key string, colors []string) {
-		for _, c := range colors {
-			if c == search {
+	var recursion func(key string, bags []bag)
+	recursion = func(key string, bags []bag) {
+		for _, b := range bags {
+			if b.color == search {
 				found[key] = struct{}{}
 			}
-			if len(m[c]) > 0 {
-				recursion(key, m[c])
+			if len(m[b.color]) > 0 {
+				recursion(key, m[b.color])
 			}
 		}
 	}
@@ -67,8 +96,8 @@ func readInput(r io.Reader) (bagMap, error) {
 		if l == "" {
 			continue
 		}
-		color, colors := splitLine(l)
-		m[color] = colors
+		color, bags := splitLine(l)
+		m[color] = bags
 	}
 	if err := s.Err(); err != nil {
 		return nil, err
@@ -76,15 +105,20 @@ func readInput(r io.Reader) (bagMap, error) {
 	return m, nil
 }
 
-var containRegex = regexp.MustCompile(`(?:\d+ ([^,]+) bags?(?:, )?)+?`)
+var containRegex = regexp.MustCompile(`(?:(\d+) ([^,]+) bags?(?:, )?)+?`)
 
-func splitLine(l string) (string, []string) {
+func splitLine(l string) (string, []bag) {
 	tmp := strings.SplitN(l, "contain", 2)
 	color := strings.TrimSuffix(strings.TrimSpace(tmp[0]), " bags")
 	matches := containRegex.FindAllStringSubmatch(strings.TrimSpace(tmp[1]), -1)
-	var colors []string
+	var bags []bag
 	for i := range matches {
-		colors = append(colors, matches[i][1])
+		count, _ := strconv.Atoi(matches[i][1])
+		bags = append(bags, bag{
+			count: count,
+			color: matches[i][2],
+		})
+
 	}
-	return color, colors
+	return color, bags
 }
